@@ -1,0 +1,1 @@
+A pre-misconfigured WindowsServer2016 install, along with a scoring engine and a scoring start script. Built to hook into the CTFd API.
