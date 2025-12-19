@@ -24,10 +24,10 @@ if (!(Test-Path $ScoringPath)) {
 # 4. User Input (Team ID)
 Clear-Host
 Write-Host "==========================================" -ForegroundColor Cyan
-Write-Host "   BLUE TEAM SCORING ENGINE SETUP" -ForegroundColor Cyan
+Write-Host "   CCDC TRYOUT SCORING ENGINE SETUP" -ForegroundColor Cyan
 Write-Host "==========================================" -ForegroundColor Cyan
 Write-Host ""
-$TeamID = Read-Host "Enter your User ID: "
+$TeamID = Read-Host "Enter your User ID"
 
 if ([string]::IsNullOrWhiteSpace($TeamID)) {
     Write-Host "[-] Invalid User ID. Exiting." -ForegroundColor Red
@@ -47,28 +47,35 @@ catch {
 # 6. Create Scheduled Task
 Write-Host "[*] Configuring Scheduled Task..." -ForegroundColor Yellow
 
-# Clean up old task if it exists
-Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue
+$Command = "powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File $EngineScript"
 
-# Define Action: Run PowerShell, Bypass Policy, Hidden Window
-$Action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-ExecutionPolicy Bypass -WindowStyle Hidden -File `"$EngineScript`""
+$TaskArgs = @(
+    "/CREATE",
+    "/TN", $TaskName,
+    "/TR", "`"$Command`"",
+    "/SC", "minute",
+    "/MO", "1",
+    "/RU", "SYSTEM",
+    "/RL", "HIGHEST",
+    "/F"
+) 
 
-# Define Trigger: Run immediately, then repeat every 1 minute indefinitely
-$Trigger = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 1)
-$Trigger.Repetition.Duration = [TimeSpan]::MaxValue # Run forever
-
-# Define Settings: Allow running on battery, do not stop if runs long
-$Settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Minutes 2)
-
-# Register the Task to run as SYSTEM (Highest Privileges)
 try {
-    Register-ScheduledTask -Action $Action -Trigger $Trigger -User "NT AUTHORITY\SYSTEM" -TaskName $TaskName -Description "Runs the Blue Team Scoring Engine" -RunLevel Highest -Settings $Settings | Out-Null
-    Write-Host "[+] Scoring Engine Task Registered Successfully!" -ForegroundColor Green
-    
-    # Start it immediately to test
-    Start-ScheduledTask -TaskName $TaskName
-    Write-Host "[+] Engine started successfully. Good luck!" -ForegroundColor Cyan
+    # We use Start-Process to run schtasks cleanly
+    $Process = Start-Process -FilePath "schtasks.exe" -ArgumentList $TaskArgs -Wait -PassThru -NoNewWindow
+
+    if ($Process.ExitCode -eq 0) {
+        Write-Host "[+] Scoring Engine Task Registered Successfully!" -ForegroundColor Green
+
+        # Start it immediately to test
+        Start-ScheduledTask -TaskName $TaskName
+        Write-Host "[+] Engine started successfully. Good luck!" -ForegroundColor Cyan
+    }
+    else {
+        Write-Host "[-] Failed to register task. Exit Code: $($Process.ExitCode)" -ForegroundColor Red
+    }
 }
+
 catch {
     Write-Host "[-] Failed to register task. Error: $_" -ForegroundColor Red
 }

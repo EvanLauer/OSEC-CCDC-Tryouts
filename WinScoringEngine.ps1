@@ -1,9 +1,19 @@
 # ==========================================
-#  WINDOWS BLUE TEAM SCORING ENGINE
+# OSEC CCDC TRYOUT WINDOWS SCORING ENGINE
 # ==========================================
 
+# --- 0. DEBUG ---
+function TestSolve {
+    Submit-Solve -ChallengeID 28 -ChallengeName "Test"
+}
+
+function DebugMsg {
+    msg * /TIME:30 "Debug Line"
+}
+
+#$Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+
 # --- 1. CONFIGURATION ---
-$CTFd_URL     = "http://192.168.103.243:4000"
 $Admin_Token  = "ctfd_4eff9761c0331fef0eafee7500b628e50b5fdcec903d74f3d97832d299a7faed"
 $Team_ID_File = "C:\Scoring\TeamID.txt"
 
@@ -27,25 +37,33 @@ function Submit-Solve {
     $Body = @{
         challenge_id = $ChallengeID
         user_id      = $TeamID
+        type         = "correct"
+        provided     = "Scripted"
     } | ConvertTo-Json
 
     try {
-        $Response = Invoke-RestMethod -Uri "$CTFd_URL/api/v1/solves" -Method Post -Headers $Headers -Body $Body -ErrorAction Stop
+        $Response = Invoke-RestMethod -Uri "http://192.168.103.243:4000/api/v1/submissions" -Method Post -Headers $Headers -Body $Body -ErrorAction Stop
         
         # === SUCCESS NOTIFICATION ===
-        # msg * sends to all sessions. /TIME:5 closes it automatically after 5s.
         msg * /TIME:5 "CORRECT! $ChallengeName Fixed. Points Awarded."
     }
     catch {
-        # Silent Failure (Avoids popup spam if API is down or already solved)
+        $httpError = $_.Exception.Message
+
+        $stream = $_.Exception.Response.GetResponseStream()
+        if ($stream) {
+            $reader = New-Object System.IO.StreamReader($stream)
+            $apiDetails = $reader.ReadToEnd()
+        }
+
+        msg * /TIME:30 "HTTP ERROR: $httpError"
     }
 }
 
 # --- 3. CHECK FUNCTIONS ---
 
-# Challenge 1: Insecure Password
+# Challenge 1: Insecure Password - WORKING
 function Check-PasswordChanged {
-    # DATE STAMP: Set this to the time you finished building the VM
     $CompetitionStart = Get-Date "01/01/2026 1:01:01 AM"
     
     try {
@@ -56,7 +74,7 @@ function Check-PasswordChanged {
     } catch {}
 }
 
-# Challenge 2: Password Policies
+# Challenge 2: Password Policies - WORKING
 function Check-PasswordPolicies {
     try {
         # Get the current policy for the domain
@@ -82,7 +100,7 @@ function Check-PasswordPolicies {
     } catch {}
 }
 
-# Challenge 3: Windows Firewall
+# Challenge 3: Windows Firewall - WORKING
 function Check-Firewall {
     try {
         # Get the status of all 3 profiles (Domain, Public, Private)
@@ -98,7 +116,7 @@ function Check-Firewall {
     } catch {}
 }
 
-# Challenge 4: RDP Network Level Authentication (NLA)
+# Challenge 4: RDP Network Level Authentication (NLA) - WORKING
 function Check-NLA {
     $Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-TCP'
     $Name = 'UserAuthentication'
@@ -114,7 +132,7 @@ function Check-NLA {
     } catch {}
 }
 
-# Challenge 5: Windows Updates Service
+# Challenge 5: Windows Updates Service - WORKING
 function Check-Updates {
     try {
         # Get the service configuration
@@ -128,7 +146,7 @@ function Check-Updates {
     } catch {}
 }
 
-# Challenge 6: Windows Defender
+# Challenge 6: Windows Defender - WORKING
 function Check-Defender {
     try {
         $Prefs = Get-MpPreference
@@ -141,7 +159,7 @@ function Check-Defender {
     } catch {}
 }
 
-# Challenge 7: RDP Service (Should be Disabled)
+# Challenge 7: RDP Service (Should be Disabled) - WORKING
 function Check-RDPDisabled {
     $Path = "HKLM:\System\CurrentControlSet\Control\Terminal Server"
     $Name = "fDenyTSConnections"
@@ -157,7 +175,7 @@ function Check-RDPDisabled {
     } catch {}
 }
 
-# Challenge 8: Account Lockout Policy
+# Challenge 8: Account Lockout Policy - WORKING
 function Check-AccountLockout {
     try {
         $Policy = Get-ADDefaultDomainPasswordPolicy
@@ -175,7 +193,7 @@ function Check-AccountLockout {
     } catch {}
 }
 
-# Challenge 9: Advanced Audit Policy (Logon)
+# Challenge 9: Advanced Audit Policy (Logon) - WORKING
 function Check-AuditLogon {
     try {
         # We use the native tool 'auditpol' to get the current status of the Logon subcategory
@@ -189,7 +207,7 @@ function Check-AuditLogon {
     } catch {}
 }
 
-# Challenge 10: User Account Control (UAC)
+# Challenge 10: User Account Control (UAC) - WORKING
 function Check-UAC {
     $Path = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"
     $Name = "EnableLUA"
@@ -205,7 +223,7 @@ function Check-UAC {
     } catch {}
 }
 
-# Challenge 11: SMBv1 Protocol (Should be Disabled)
+# Challenge 11: SMBv1 Protocol (Should be Disabled) - WORKING
 function Check-SMB1 {
     try {
         # We check the running configuration.
@@ -216,7 +234,7 @@ function Check-SMB1 {
     } catch {}
 }
 
-# Challenge 12: Windows Time Service (w32time)
+# Challenge 12: Windows Time Service (w32time) - WORKING
 function Check-TimeService {
     try {
         $Service = Get-Service -Name w32time
@@ -228,12 +246,12 @@ function Check-TimeService {
     } catch {}
 }
 
-# Challenge 13: Firewall Inbound Rules (Stop "Allow All")
+# Challenge 13: Firewall Inbound Rules (Stop "Allow All") - WORKING
 function Check-FirewallInbound {
     try {
         # The misconfig sets ALL inbound rules to "Allow". 
         # To pass, the student must have restored rules that "Block" traffic.
-        $BlockRules = Get-NetFirewallRule -Direction Inbound -Action Block -ErrorAction SilentlyContinue
+        $BlockRules = @(Get-NetFirewallRule -Direction Inbound -Action Block -ErrorAction SilentlyContinue)
         
         # If we find at least 1 rule that Blocks traffic, they fixed the "Allow All" state.
         if ($BlockRules.Count -gt 0) {
@@ -242,7 +260,7 @@ function Check-FirewallInbound {
     } catch {}
 }
 
-# Challenge 14: Insecure SMB Share (CompanyBackups)
+# Challenge 14: Insecure SMB Share (CompanyBackups) - WORKING
 function Check-OpenShare {
     $ShareName = "CompanyBackups"
     try {
@@ -259,9 +277,9 @@ function Check-OpenShare {
         $Permissions = Get-SmbShareAccess -Name $ShareName
         
         # We fail if we see "Everyone" or "Anonymous Logon" in the access list
-        $Insecure = $Permissions | Where-Object { 
-            $_.AccountName -match "Everyone" -or $_.AccountName -match "Anonymous" 
-        }
+        $Insecure = @($Permissions | Where-Object { 
+            ($_.AccountName -match "Everyone" -or $_.AccountName -match "Anonymous") -and $_.AccessControlType -eq "Allow"
+        })
 
         if ($Insecure.Count -eq 0) {
             Submit-Solve -ChallengeID 14 -ChallengeName "Insecure Share Secured"
@@ -269,7 +287,7 @@ function Check-OpenShare {
     } catch {}
 }
 
-# Challenge 15: WinRM TrustedHosts (Remove Wildcard)
+# Challenge 15: WinRM TrustedHosts (Remove Wildcard) - WORKING
 function Check-WinRMTrustedHosts {
     try {
         # Get the current TrustedHosts value
@@ -283,11 +301,11 @@ function Check-WinRMTrustedHosts {
     } catch {}
 }
 
-# Challenge 16: PowerShell Execution Policy
+# Challenge 16: PowerShell Execution Policy - WORKING
 function Check-ExecutionPolicy {
     try {
         # Get the effective execution policy
-        $Policy = Get-ExecutionPolicy
+        $Policy = (Get-ExecutionPolicy -Scope LocalMachine).ToString()
 
         # The prompt requires "RemoteSigned" or "Restricted" to pass.
         if ($Policy -eq "RemoteSigned" -or $Policy -eq "Restricted") {
@@ -296,7 +314,7 @@ function Check-ExecutionPolicy {
     } catch {}
 }
 
-# Challenge 17: Guest Account (Should be Disabled)
+# Challenge 17: Guest Account (Should be Disabled) - WORKING
 function Check-GuestDisabled {
     try {
         # We check the status of the built-in Guest account.
@@ -309,7 +327,7 @@ function Check-GuestDisabled {
     } catch {}
 }
 
-# Challenge 18: Bad Users Deleted
+# Challenge 18: Bad Users Deleted - WORKING
 function Check-BadUsers {
     # List of accounts that must be DELETED
     # (Guest is excluded here because it should be Disabled, not deleted)
@@ -335,7 +353,7 @@ function Check-BadUsers {
     }
 }
 
-# Challenge 19: Bad Groups Deleted
+# Challenge 19: Bad Groups Deleted - WORKING
 function Check-BadGroups {
     # List of groups that must be DELETED
     $BadGroups = @("Helpdesk Tier 1", "Legacy Printers", "Contractors")
@@ -360,7 +378,7 @@ function Check-BadGroups {
     }
 }
 
-# Challenge 20: Bad DNS Forwarder Removed
+# Challenge 20: Bad DNS Forwarder Removed - WORKING
 function Check-DNSForwarder {
     try {
         # Get current forwarders
@@ -376,12 +394,12 @@ function Check-DNSForwarder {
 
 # Challenge 21: Frances fucked up CTFd
 
-# Challenge 22: DNS Zone Transfers (Should be Restricted)
+# Challenge 22: DNS Zone Transfers (Should be Restricted) - WORKING
 function Check-ZoneTransfer {
     $ZoneName = "osec.local"
     try {
         # We get the zone configuration.
-        $Zone = Get-DnsServerPrimaryZone -Name $ZoneName -ErrorAction Stop
+        $Zone = Get-DnsServerZone -Name $ZoneName -ErrorAction Stop
 
         # The Vulnerability is "TransferAnyServer".
         # If it is set to anything else (NoTransfer or TransferSecure), they fixed it.
@@ -391,7 +409,7 @@ function Check-ZoneTransfer {
     } catch {}
 }
 
-# Challenge 23: DHCP Scope Options (Bad Router)
+# Challenge 23: DHCP Scope Options (Bad Router) - WORKING
 function Check-DHCPScope {
     $TargetScope = "10.0.0.0"
     
@@ -415,7 +433,7 @@ function Check-DHCPScope {
     } catch {}
 }
 
-# Challenge 24: IIS Directory Browsing (Should be Disabled)
+# Challenge 24: IIS Directory Browsing (Should be Disabled) - WORKING
 function Check-DirectoryBrowsing {
     try {
         # We use the IIS administration command to check the effective setting.
@@ -429,7 +447,7 @@ function Check-DirectoryBrowsing {
     } catch {}
 }
 
-# Challenge 25: IIS App Pool Identity (Should NOT be LocalSystem)
+# Challenge 25: IIS App Pool Identity (Should NOT be LocalSystem) - WORKING
 function Check-AppPoolIdentity {
     try {
         # Ensure the module is loaded so we can check IIS settings
@@ -439,42 +457,24 @@ function Check-AppPoolIdentity {
         # 0 = LocalSystem (Vulnerable)
         # 2 = NetworkService (Acceptable)
         # 4 = ApplicationPoolIdentity (Secure/Default)
-        $Identity = Get-WebConfigurationProperty -PSPath 'IIS:\AppPools\DefaultAppPool' -Filter 'processModel' -Name 'identityType'
+        $Identity = Get-ItemProperty -Path 'IIS:\AppPools\DefaultAppPool' -Name 'processModel.identityType'
+
+        $Val = ($Identity).ToString()
         
         # If the value is NOT 0, they have moved away from LocalSystem.
-        if ($Identity.Value -ne 0) {
+        if ($Val -ne "LocalSystem") {
             Submit-Solve -ChallengeID 25 -ChallengeName "App Pool Secured"
         }
     } catch {}
 }
 
-# Challenge 26: Remove ASP.NET 3.5 (Reduce Attack Surface)
-function Check-AspNet35 {
-    try {
-        # Check the install state of the legacy ASP.NET 3.5 feature
-        $Feature = Get-WindowsFeature -Name Web-Asp-Net
-        
-        # If the state is NOT "Installed" (e.g., "Available" or "Removed"), they pass.
-        if ($Feature.InstallState -ne "Installed") {
-            Submit-Solve -ChallengeID 26 -ChallengeName "ASP.NET 3.5 Removed"
-        }
-    } catch {}
-}
+# Challenge 26: Remove ASP.NET 3.5 - WILL NOT WORK
 
-# Challenge 27: IIS Basic Authentication (Should be Disabled)
-function Check-BasicAuth {
-    try {
-        # Check the Basic Authentication setting on the Default Web Site
-        $Property = Get-WebConfigurationProperty -Filter //basicAuthentication -PSPath 'IIS:\Sites\Default Web Site' -Name enabled -ErrorAction Stop
-        
-        # If enabled is False, they fixed it.
-        if ($Property.Value -eq $False) {
-            Submit-Solve -ChallengeID 27 -ChallengeName "Basic Auth Disabled"
-        }
-    } catch {}
-}
+
+# Challenge 27: IIS Basic Authentication - WILL NOT WORK
 
 # --- 4. EXECUTE ---
+#TestSolve
 Check-PasswordChanged
 Check-PasswordPolicies
 Check-Firewall
@@ -499,5 +499,8 @@ Check-ZoneTransfer
 Check-DHCPScope
 Check-DirectoryBrowsing
 Check-AppPoolIdentity
-Check-AspNet35
-Check-BasicAuth
+
+#$Stopwatch.Stop()
+#$Time = $Stopwatch.Elapsed
+#$FormattedTime = "$($Time.Minutes):$($Time.Seconds):$($Time.Milliseconds)"
+#msg * /TIME:30 "Total Execution Time: $FormattedTime"
