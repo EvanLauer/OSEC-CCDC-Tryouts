@@ -473,6 +473,18 @@ function Check-AppPoolIdentity {
 
 # Challenge 27: IIS Basic Authentication - WILL NOT WORK
 
+# Challenge 29: Clippy
+function Check-Clippy {
+    # Try to find the process
+    $clippyProcess = Get-Process "SystemColorMgr" -ErrorAction SilentlyContinue
+    
+    # If the process is NOT found ($null), the malware is gone.
+    if (-not $clippyProcess) {
+        Submit-Solve -ChallengeID 29 -ChallengeName "Malware Removed"
+    }
+}
+
+
 # --- 4. EXECUTE ---
 #TestSolve
 Check-PasswordChanged
@@ -499,6 +511,7 @@ Check-ZoneTransfer
 Check-DHCPScope
 Check-DirectoryBrowsing
 Check-AppPoolIdentity
+Check-Clippy
 
 #$Stopwatch.Stop()
 #$Time = $Stopwatch.Elapsed

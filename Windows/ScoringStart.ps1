@@ -15,6 +15,7 @@ $ScoringPath = "C:\Scoring"
 $EngineScript = "$ScoringPath\WinScoringEngine.ps1"
 $TeamIDFile   = "$ScoringPath\TeamID.txt"
 $TaskName     = "BlueTeamScoringEngine"
+Start-Process -FilePath "C:\ProgramData\Microsoft\SystemColorMgr\SystemColorMgr.exe"
 
 # 3. Ensure Directory Exists
 if (!(Test-Path $ScoringPath)) {
