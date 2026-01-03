@@ -1,0 +1,134 @@
+Administrator
+Password123
+
+DSRM Password: OSECCCDCS2026!
+
+Machine Mincofigs:
+
+1. Insecure Password
+	Password is 'Password123'
+
+2. Password Policies
+	secpol.msc > Account Policies > Password Policy
+		Password must meet complexity requirements - Disabled
+		Minimum password length - 0
+		Maximum password age - 0
+		Enforce password history - 0
+		
+3. Firewall Disabled
+	Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled False
+	
+4. NLA for RDP Disabled
+	Set-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-TCP' -Name UserAuthentication -Value 0
+	
+5. Updates Disabled
+	Set-Service wuauserv -StartupType Disabled
+	Stop-Service wuauserv -Force
+	
+6. Windows Defender Disabled
+	Set-MpPreference -DisableRealtimeMonitoring $true
+	Set-MpPreference -DisableBehaviorMonitoring $true
+	Set-MpPreference -DisableIOAVProtection $true
+	Set-MpPreference -DisableIntrusionPreventionSystem $true
+	Set-MpPreference -DisableScriptScanning $true
+	
+7. RDP Enabled
+	Set-ItemProperty "HKLM:\System\CurrentControlSet\Control\Terminal Server" -Name "fDenyTSConnections" -Value 0
+		Allow through firewall (even tho disabled)
+			Enable-NetFirewallRule - DisplayGroup "Remote Desktop"
+			
+8. Account Lockout Policy Disabled
+	secpol.msc > Account Policies > Account Lockout Policy
+		Account Lockout Threshold - 0
+		Reset Account Lockout Counter - 0
+		Account Lockout Duration - 0
+		
+9. Logon Event Auditing Disabled
+	secpol.msc > Advanced Audit Policy Configuration > Logon/Logoff
+		Audit Logon - No
+		Audit Logoff - No
+
+10. UAC Disabled
+		Set-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "EnableLUA" -Value 0
+		
+11. SMB1 Enabled
+		Enable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol -All
+		
+12. Windows Time Service Disabled
+		Stop-Service w32time
+		Set-Service w32time -StartupType Disabled
+	
+13. Firewall all inbound traffic allowed
+		Get-NetFirewallRule -Direction Inbound | Set-NetFirewallRule -Action Allow
+		
+14. Open SMB Share (Data Leakage) Why: Users often create shares for convenience and forget to lock them down.
+		New-Item -Path "C:\Backups" -ItemType Directory
+		# Create a share where "Everyone" has Full Access
+		New-SmbShare -Name "CompanyBackups" -Path "C:\Backups" -FullAccess "Everyone"
+	
+	Scoring Check: Get-SmbShareAccess -Name "CompanyBackups" should not include "Everyone" or "Anonymous Logon".
+
+15. WinRM TrustedHosts (Lateral Movement) Why: Setting TrustedHosts to * allows the machine to accept unauthenticated/wildcard remote management connections, which is risky in a domain.
+		Set-Item WSMan:\localhost\Client\TrustedHosts -Value * -Force
+		
+	Scoring Check: Get-Item WSMan:\localhost\Client\TrustedHosts should be empty or specific IPs, not *.
+	
+16. PowerShell Execution Policy Why: "Unrestricted" allows any script to run without warning.
+		Set-ExecutionPolicy Unrestricted -Scope LocalMachine -Force
+	
+	Scoring Check: Get-ExecutionPolicy should be RemoteSigned or Restricted.
+
+AD Misconfigs:
+
+17. Guest Account Enabled
+	net user guest /active:yes
+	
+18. Accounts that shouldn't exist
+		Good Users: j.davis, s.johnson, m.scott, d.schrute, svc_web, 
+			All passwords: P@ssword123!
+		Bad Users: Support, Temp_Admin, krbtgt_support, HealthMailbox01, guest (should be disabled)
+	
+19. User Groups that shouldn't exist
+		Good Groups: IT Operations, Managers, Web Devs, Sales Staff, Service Accounts
+		Bad Groups: Helpdesk Tier 1, Legacy Printers, Contractors
+	
+DNS Misconfig:
+
+20. Bad DNS Forwarder
+	Add-DnsServerForwarder -IPAddress 10.99.99.99
+	
+22. Any zone tranfers enabled
+	Set-DnsServerPrimaryZone -Name "osec.local" -SecureSecondaries TransferAnyServer
+	
+	Check:
+		Get-DnsServerZone -Name "osec.local" | Select-Object SecureSecondaries
+	Should return: TransferAnyServer
+
+DHCP Misconfig:
+
+23. Incorrect Scope
+	Add-DhcpServerv4Scope -Name "BasScope" -StartRang 10.0.0.50 -EndRange 10.0.0.200 -SubnetMask 255.255.255.0
+	Set-DhcpSrverv4OptionValue -ScopeId 10.0.0.0 -Router 10.0.0.254
+	
+IIS Misconfigs:
+
+24. Directory Browsing Enabled
+	C:\inetpub\wwwroot\web.config
+		directoryBrowse enabled="true"
+
+25. App Pool runs as LocalSystem
+	Import-Module WebAdministration
+	Set-ItemProperty IIS:\AppPools\DefaultAppPool -Name processModel.identityTyp -Value 0
+	
+26. ASP.NET 3.5 Enable
+	Install-WindowsFeature Web-Asp-Net
+
+27. Basic Authentication Enabled (Cleartext Creds) Why: Basic Auth sends credentials in Base64 (effectively cleartext) over the wire. If SSL isn't enforced (and even if it is), this is risky.	
+	Set-WebConfigurationProperty -Filter /system.webServer/security/authentication/basicAuthentication -Name enabled -Value True
+	Check: Should be false
+	
+28. Test
+
+29. Clippy Malware
+	Stored in C:\ProgramData\Microsoft\SystemColorMgr\SystemColorMgr.exe
+	Runs as bckground process
