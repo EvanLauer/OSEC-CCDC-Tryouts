@@ -18,6 +18,8 @@ This directory contains the source code, scoring logic, and emulation binaries f
 
 ## 🚀 Deployment Guide
 
+[Download image here](https://drive.google.com/file/d/1drc3EZlH86e0h9zJlIx-xQ4Rk-bpf-r6/view?usp=drive_link)
+
 ### 1. Import the VM
 Import the provided `.vma.zst` file into your hypervisor.
 * **Credentials:** `Administrator` / `Password123`
