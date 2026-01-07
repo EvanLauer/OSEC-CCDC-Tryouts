@@ -16,6 +16,8 @@ This directory contains the source code, scoring logic, and emulation scripts fo
 
 ## 🚀 Deployment Guide
 
+[Download image here](https://drive.google.com/file/d/1kkC0PG3fKNoc0tT2q0jbqvxmneyH17ng/view?usp=drive_link)
+ 
 ### 1. Import the VM
 Import the provided `.vma.zst` (Proxmox Backup) file into your hypervisor.
 * **Credentials:** `administrator` / `Password123` (or `root` access via sudo)
