@@ -47,6 +47,8 @@ Detailed deployment and usage instructions are split by component. Please refer 
 * `/Kali` - Attack engine.
 * `/Proxmox` - Deployment and scaling scripts.
 
+All VM images can be found [here.](https://drive.google.com/drive/folders/1zXhMcmTspppL8PAOpT01AQCeQJIVspTp?usp=sharing)
+
 ---
 
 ## ⚠️ Disclaimer
