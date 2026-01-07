@@ -19,7 +19,7 @@ This directory contains the source code, scoring logic, and emulation binaries f
 ## 🚀 Deployment Guide
 
 ### 1. Import the VM
-Import the provided `.qmdk` file into your hypervisor.
+Import the provided `.vma.zst` file into your hypervisor.
 * **Credentials:** `Administrator` / `Password123`
 
 ### 2. Configure the Beacon (Optional)
