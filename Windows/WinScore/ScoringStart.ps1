@@ -110,9 +110,6 @@ for ($i = 0; $i -lt $attacks.Count; $i++) {
     # We use a generic name so students can't easily guess which one is which
     # e.g. "SystemHealthCheck_0", "SystemHealthCheck_1"
     Register-ScheduledTask -Action $action -Trigger $trigger -TaskName "SystemHealthCheck_$i" -User "System" -Force
-
-    # Optional: Log for yourself so you know what happened
-    Write-Host "Scheduled '$currentArg' for $triggerTime (Delay: $finalDelay min)"
 }
 
 Start-Sleep -Seconds 3

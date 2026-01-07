@@ -1,0 +1,82 @@
+pfSense Misconfigs
+
+1: Management Exposure (WAN Rule)
+	WAN firewall rule TCP Pass to any source on WAN address on ports 80 and 443
+	Allows anyone on the internet to see your firewall's login page. An attacker can now attempt to brute-force the "admin" password.
+
+2. Bypass All (Floating Rule)
+	Applies to all interfaces and overrides standard interface rules. effectively turn off the firewall entirely
+	Firewall > Rules > Floating. 
+	Action: Pass 
+	Quick: Check this box (This makes the rule apply immediately, skipping other checks).
+	Interface: WAN (and any others listed).
+	Direction, Protocol, Source, Destination: any
+
+3. Disable Packet Filtering
+	Navigate to System > Advanced > Firewall & NAT.
+	Check the box Disable all packet filtering.
+	This turns pfSense into a simple, wide-open router. All rules (WAN, LAN, Floating) are ignored. It’s the "off switch" for security.
+
+4. Modify Traffic to Make Firewall Visible
+	Navigate to: System > Advanced > Firewall & NAT.
+	Find: "IP Do-Not-Fragment compatibility" check it
+	DF Bits: By clearing the "Don't Fragment" bit instead of dropping the packet, you are modifying traffic in a way that reveals the firewall is intercepting and tampering with packets
+
+5. Protocol Downgrade
+	Navigate to System > Advanced > Admin Access.
+	Change Protocol to HTTP
+
+6. Open WebGUI Redirect
+	System > Advanced > Admin Access
+	Check the box "Disable webConfigurator redirect"
+	If you disable the redirect but don't explicitly block Port 80 on your firewall rules, the port might stay "Open" but just show a "Connection Refused" or a blank page
+
+7. Interface Information Leakage
+	System > Advanced > Networking
+	Disable hardware checksum offloading
+	
+8. Unlocked Console
+	System > Advanced > Admin Access
+	Uncheck Password protect the console menu
+	Anyone with physical access can walk up to the machine and select Option 3 (Reset Admin Password) or Option 4 (Reset to Factory Defaults) without ever typing a password.
+
+9. DNS Rebind (Information Leakage)
+	System > Advanced > Admin Access. Check "Disable DNS Rebinding Checks"
+	Allows a malicious website visited by a user on the network to communicate with the pfSense WebGUI
+
+10. SSH Root Login
+	System > Advanced > Admin Access. Set "Secure Shell" to enabled, and set "SSH Password Login" to "Enable password login for all users."
+	Allowing password login for root makes the firewall a prime target for automated brute-force scripts
+
+11. Unblock Bogon Networks (Reconnaissance)
+	Interfaces > WAN. uncheck "Block bogon networks" 
+	Disabling this allows spoofed traffic from non-allocated IP ranges to hit your firewall rules directly
+
+12.Connection Optimization (DoS Vulnerability)
+	System > Advanced > Firewall & NAT. Set Firewall Optimization Options to Aggressive
+	drop legitimate traffic too early or keep "dead" connections open until the memory fills up
+
+13. Global Log Suppression
+	Status > System Logs > Settings. Check the box "Log packets matched from the default block rules in the packet filter log" but uncheck "Log packets matched from the default pass rules"
+	Set "Remote Log Servers" to a fake IP (like 1.1.1.1).
+	This makes the firewall "go dark." Even if an attacker is hitting the WAN with a port scan, the student will see nothing in the logs
+
+14. Reflection Attack Vector
+	System > Advanced > Firewall & NAT. Set NAT Reflection mode for port forwards to Pure NAT
+	Allows internal traffic to loop through the firewall unnecessarily, masking the true origin of internal packets.
+	Open the firewall up to "Hairpinning" issues that can be exploited for spoofing or internal reconnaissance
+
+15. Asymmetric Routing Hole
+	System > Advanced > Firewall & NAT. Check the box Disable Reply-to.
+	Allow an attacker to send packets that get "lost" or misrouted, potentially bypassing stateful inspection in complex Proxmox networks
+
+16. Backdoor User
+	System > User Manager create account: _user pw:user part of Admins group
+	Create a user that looks like a system service but has full admin rights.
+
+17. SNMP Leak
+	Enable the SNMP Daemon and its controls. SNMP Interface is WAN. Community String public
+	public is "default" password that every hacker's script tries first
+	SNMP enabled with default settings, broadcasts hardware specs, interface stats, and uptime to anyone on the network
+
+18. Insecure Password
