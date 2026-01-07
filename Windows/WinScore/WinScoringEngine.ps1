@@ -382,8 +382,7 @@ function Check-DNSForwarder {
     } catch {}
 }
 
-# Challenge 21: Frances fucked up CTFd
-# (Empty in original)
+# Challenge 21: Empty
 
 # Challenge 22: DNS Zone Transfers (Should be Restricted)
 function Check-ZoneTransfer {
