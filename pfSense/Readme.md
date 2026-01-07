@@ -14,6 +14,8 @@ This directory contains the source code, scoring logic, and configuration files 
 
 ## 🚀 Deployment Guide
 
+[Download image here](https://drive.google.com/file/d/19CO-sNEtVIqQk3_8Ga3QPyFcV7LvQLl0/view?usp=sharing)
+
 ### 1. Import the VM
 Import the provided `.vma.zst` (Proxmox Backup) file into your hypervisor.
 * **Web Credentials:** `admin` / `pfsense` (Default) or `Password123`
