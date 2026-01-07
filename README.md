@@ -15,9 +15,9 @@ This environment is built to serve two main purposes:
 
 The network consists of three primary Virtual Machines, each pre-seeded with intentional vulnerabilities and security flaws for the Blue Team to remediate:
 
-* **Windows Server 2016:**
-* **Ubuntu Server 24.04:**
-* **pfSense 2.7.2:**
+* **Windows Server 2016**
+* **Ubuntu Server 24.04**
+* **pfSense 2.7.2**
 
 ## 🏆 Scoring Engine
 
